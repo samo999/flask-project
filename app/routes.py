@@ -1,59 +1,3 @@
-# from flask import Blueprint, jsonify, request
-# import sqlite3
-
-# main = Blueprint("main", __name__)
-
-# # Function to search for the ICAO code (ident) based on the city name (municipality)
-# def search_airport_by_city(city_name):
-#     conn = sqlite3.connect('app/airport_codes.db')
-
-#     # Set the text_factory to handle Unicode characters correctly
-#     conn.text_factory = str  # This ensures non-ASCII characters are properly handled
-#     cursor = conn.cursor()
-
-#     # Search for airports that match the city name (municipality) anywhere in the text (case-insensitive)
-#     cursor.execute('''
-#         SELECT ident, iata_code, name, municipality, iso_country
-#         FROM airports
-#         WHERE municipality LIKE ?
-#     ''', ('%' + city_name + '%',))
-
-#     results = cursor.fetchall()  # Fetch all matching records
-#     conn.close()
-
-#     if results:
-#         # Prepare the response to return all matching records
-#         airports = [
-#             {
-#                 "ICAO Code": ident,
-#                 "IATA Code": iata_code,
-#                 "Airport Name": name,
-#                 "City": municipality,
-#                 "Country": iso_country
-#             }
-#             for ident, iata_code, name, municipality, iso_country in results
-#         ]
-#         return airports
-#     else:
-#         return {"error": "No airports found matching the search term."}
-
-# @main.route('/get-airport-code', methods=['GET'])
-# def get_airport_code():
-#     """
-#     Endpoint to get all ICAO codes (ident) of airports based on a city name (municipality) from offline data.
-#     Example: /get-airport-code?city=Madrid
-#     """
-#     city_name = request.args.get('city')
-    
-#     if not city_name:
-#         return jsonify({"error": "City name is required as a query parameter 'city'"}), 400
-
-#     city_name = city_name.lower()
-
-#     result = search_airport_by_city(city_name)
-
-#     return jsonify(result)
-###########################################
 from flask import Blueprint, request, jsonify
 import requests
 import sqlite3
@@ -64,7 +8,8 @@ location_airport = Blueprint('location_airport', __name__)
 # Database search function for airports
 def search_airport_by_city(city_name):
     conn = sqlite3.connect('app/airport_codes.db')
-    conn.text_factory = str  # Handle Unicode characters
+    conn.text_factory = lambda x: x.decode('utf-8')  # Ensure UTF-8 decoding
+    # conn.text_factory = str  # Handle Unicode characters
     cursor = conn.cursor()
 
     # Query the database for airports in the city
@@ -127,9 +72,7 @@ def get_location_airports():
 
         # Step 2: Find airports in the city
         airports = search_airport_by_city(query)
-
-        # Return the combined result
-        return jsonify({
+        response = jsonify({
             "query": query,
             "location": {
                 "latitude": latitude,
@@ -138,7 +81,13 @@ def get_location_airports():
                 "bounding_box": location_result.get("boundingbox")
             },
             "airports": airports
-        }), 200
+        })
+
+        # Set response encoding to UTF-8
+        response.headers["Content-Type"] = "application/json; charset=utf-8"
+
+        # Return the response, ensuring special characters display correctly
+        return response, 200
 
     except requests.exceptions.RequestException as e:
         return jsonify({"error": "Failed to connect to Nominatim API", "details": str(e)}), 500
